@@ -20,6 +20,7 @@ export async function POST(req: Request, res: Response) {
   try {
     const body = await req.json();
     const { file_key, file_name } = body;
+    const fileUrl = getS3Url(file_key)
     console.log(file_key, file_name);
     const thread = await openai.beta.threads.create();
     // const thread = await openai.beta.threads.create({
@@ -37,7 +38,7 @@ export async function POST(req: Request, res: Response) {
       .values({
         fileKey: file_key,
         pdfName: file_name,
-        pdfUrl: getS3Url(file_key),
+        pdfUrl: fileUrl,
         userId,
         threadId: thread.id,
       })
@@ -45,22 +46,45 @@ export async function POST(req: Request, res: Response) {
         insertedId: chats.id,
       });
 
-    const initialMessage = {
-      role: "user",
-      content: "Review the provided lab report, summarize the key health information, and generate a health score between 1 and 10 based on the findings",
-      attachments: [],  // No attachments for now
-    };
 
-    // Step 2: Send the initial message to the OpenAI thread
-    const messageResponse = await openai.beta.threads.messages.create(
-      thread.id,
-      initialMessage
-    );
+    // // Step 2: Send the initial message to the OpenAI thread
 
-    const messages = await openai.beta.threads.messages.create(
-      thread.id,
-      message
-    );
+    // const messageResponse = await openai.beta.threads.messages.create(
+    //   thread.id,
+    //   initialMessage
+    // );
+
+    // const messages = await openai.beta.threads.messages.create(
+    //   thread.id,
+    //   message
+    // );
+
+    const run = await openai.beta.threads.createAndRunPoll({
+      assistant_id: process.env.OPENAI_ASSITANT_ID!,
+      thread: {
+        messages: [
+          { role: "user", content: "Review the provided lab report, summarize the key health information, and generate a health score between 1 and 10 based on the findings", attachments: [] },
+        ],
+      },
+    });
+
+    let labSummary = "";
+    if (run.status === 'completed') {
+      const messages = await openai.beta.threads.messages.list(
+        run.thread_id
+      );
+      for (const message of messages.data.reverse()) {
+        if (message.content?.length > 0) {
+          if (message.role === "assistant") {
+            console.log(message?.content)
+            labSummary += message?.content[0]?.text?.value;
+          }
+        }
+      }
+    }
+
+    console.log(JSON.stringify(run, null, 4));
+    console.log(JSON.stringify(labSummary, null, 4));
 
     return NextResponse.json(
       {
