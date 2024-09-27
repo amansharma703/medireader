@@ -1,6 +1,5 @@
 import { db } from "@/lib/db";
-import { chats } from "@/lib/db/schema";
-import { loadS3IntoPinecone } from "@/lib/pinecone";
+import { chats, messages as _messages } from "@/lib/db/schema";
 import { getS3Url } from "@/lib/s3";
 import { auth } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
@@ -17,30 +16,15 @@ export async function POST(req: Request, res: Response) {
   if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
   try {
     const body = await req.json();
     const { file_key, file_name, openAIFileId } = body;
-    const fileUrl = getS3Url(file_key)
+    const fileUrl = getS3Url(file_key);
     console.log(file_key, file_name, openAIFileId);
-    const thread = await openai.beta.threads.create();
-
-    console.log("thre", thread)
-    const newChats = await db
-      .insert(chats)
-      .values({
-        fileKey: file_key,
-        pdfName: file_name,
-        pdfUrl: fileUrl,
-        userId,
-        threadId: thread.id,
-      })
-      .returning({
-        insertedId: chats.id,
-      });
-
 
     const run = await openai.beta.threads.createAndRunPoll({
-      assistant_id: process.env.OPENAI_ASSITANT_ID!,
+      assistant_id: process.env.OPENAI_ASSISTANT_ID!,
       thread: {
         messages: [
           {
@@ -57,21 +41,40 @@ export async function POST(req: Request, res: Response) {
       },
     });
 
+    if (run.status !== 'completed') {
+      return NextResponse.json({ error: "Thread did not complete successfully" }, { status: 500 });
+    }
+
+    const newChats = await db
+      .insert(chats)
+      .values({
+        fileKey: file_key,
+        pdfName: file_name,
+        pdfUrl: fileUrl,
+        userId,
+        threadId: run.thread_id,
+      })
+      .returning({
+        insertedId: chats.id,
+      });
+
     let labSummary = "";
-    if (run.status === 'completed') {
-      const messages = await openai.beta.threads.messages.list(
-        run.thread_id
-      );
-      for (const message of messages.data.reverse()) {
-        if (message.content?.length > 0) {
-          if (message.role === "assistant") {
-            console.log(message?.content)
-            labSummary += message?.content[0]?.text?.value;
-          }
+    const messages = await openai.beta.threads.messages.list(run.thread_id);
+    for (const message of messages.data.reverse()) {
+      if (message.content?.length > 0) {
+        if (message.role === "assistant") {
+          console.log(message?.content);
+          labSummary += message?.content[0]?.text?.value;
         }
       }
     }
 
+    await db.insert(_messages).values({
+      chatId: newChats[0].insertedId,
+      content: labSummary,
+      createdAt: new Date(),
+      role: 'system',
+    });
     console.log(JSON.stringify(run, null, 4));
     console.log(JSON.stringify(labSummary, null, 4));
 
@@ -89,3 +92,4 @@ export async function POST(req: Request, res: Response) {
     );
   }
 }
+
