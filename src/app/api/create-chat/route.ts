@@ -19,19 +19,11 @@ export async function POST(req: Request, res: Response) {
   }
   try {
     const body = await req.json();
-    const { file_key, file_name } = body;
+    const { file_key, file_name, openAIFileId } = body;
     const fileUrl = getS3Url(file_key)
-    console.log(file_key, file_name);
+    console.log(file_key, file_name, openAIFileId);
     const thread = await openai.beta.threads.create();
-    // const thread = await openai.beta.threads.create({
-    //   messages: [
-    //     {
-    //       role: "user",
-    //       content: "Review the provided lab report, summarize the key health information, and generate a health score between 1 and 10 based on the findings",
-    //       attachments: []
-    //     },
-    //   ],
-    // });
+
     console.log("thre", thread)
     const newChats = await db
       .insert(chats)
@@ -47,23 +39,20 @@ export async function POST(req: Request, res: Response) {
       });
 
 
-    // // Step 2: Send the initial message to the OpenAI thread
-
-    // const messageResponse = await openai.beta.threads.messages.create(
-    //   thread.id,
-    //   initialMessage
-    // );
-
-    // const messages = await openai.beta.threads.messages.create(
-    //   thread.id,
-    //   message
-    // );
-
     const run = await openai.beta.threads.createAndRunPoll({
       assistant_id: process.env.OPENAI_ASSITANT_ID!,
       thread: {
         messages: [
-          { role: "user", content: "Review the provided lab report, summarize the key health information, and generate a health score between 1 and 10 based on the findings", attachments: [] },
+          {
+            role: "user",
+            content: "Review the provided lab report, summarize the key health information, and generate a health score between 1 and 10 based on the findings",
+            attachments: [{
+              file_id: openAIFileId,
+              tools: [{
+                type: "file_search"
+              }]
+            }]
+          },
         ],
       },
     });
