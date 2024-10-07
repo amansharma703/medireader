@@ -26,7 +26,7 @@ export const POST = async (req: Request) => {
 
         // Replace spaces in the filename with underscores and define the save path
         const filename = file.name.replaceAll(" ", "_");
-        const savePath = path.join(process.cwd(), "public/assets/" + filename);
+        const savePath = path.join(process.cwd(), "tmp/" + filename);
 
         // Save the file to the public/assets directory
         await writeFile(savePath, buffer);
