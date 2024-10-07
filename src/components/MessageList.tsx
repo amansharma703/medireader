@@ -2,6 +2,10 @@ import { cn } from "@/lib/utils";
 import { Message } from "ai/react";
 import { Loader2 } from "lucide-react";
 import React from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 
 type Props = {
   isLoading: boolean;
@@ -36,7 +40,14 @@ const MessageList = ({ messages, isLoading }: Props) => {
                 }
               )}
             >
-              <p>{message.content}</p>
+              <ReactMarkdown
+                className="prose"
+                key={message.content}
+                remarkPlugins={[remarkGfm, remarkBreaks]}
+                rehypePlugins={[rehypeRaw]}
+              >
+                {message.content}
+              </ReactMarkdown>
             </div>
           </div>
         );
