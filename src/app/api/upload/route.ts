@@ -9,17 +9,10 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Disable body parsing by Next.js to allow form data
-export const config = {
-    api: {
-        bodyParser: false,
-    },
-};
-
-// Upload file and save locally, then send to OpenAI
+// API handler
 export const POST = async (req: Request) => {
     try {
-        // Parse the form data
+        // Parse the form data manually (since body parsing is disabled)
         const formData = await req.formData();
         const file = formData.get("file");
 
@@ -53,10 +46,8 @@ export const POST = async (req: Request) => {
             }
         });
 
-
         // Respond with success
         return NextResponse.json({ message: "File uploaded successfully", openAIFile }, { status: 201 });
-
     } catch (error) {
         console.error("Error uploading file:", error);
         return NextResponse.json({ error: "Failed to upload file to OpenAI" }, { status: 500 });

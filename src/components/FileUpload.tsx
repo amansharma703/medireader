@@ -1,4 +1,5 @@
 "use client";
+
 import { getS3Url, uploadToS3 } from "@/lib/s3";
 import { useMutation } from "@tanstack/react-query";
 import { Inbox, Loader2 } from "lucide-react";
@@ -8,26 +9,26 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
-// https://github.com/aws/aws-sdk-js-v3/issues/4126
-
 const FileUpload = () => {
   const router = useRouter();
   const [uploading, setUploading] = React.useState(false);
+  const [processStage, setProcessStage] = React.useState<"uploading" | "reading" | "analyzing" | "summarizing" | null>(null);
+
   const { mutate, isLoading } = useMutation({
     mutationFn: async ({
       file_key,
       file_name,
-      openAIFileId
+      openAIFileId,
     }: {
       file_key: string;
       file_name: string;
-      openAIFileId: String;
+      openAIFileId: string;
     }) => {
-      console.log("____________________________");
+      setProcessStage("analyzing");
       const response = await axios.post("/api/create-chat", {
         file_key,
         file_name,
-        openAIFileId
+        openAIFileId,
       });
       return response.data;
     },
@@ -37,70 +38,108 @@ const FileUpload = () => {
     accept: { "application/pdf": [".pdf"] },
     maxFiles: 1,
     onDrop: async (acceptedFiles) => {
-      // console.log("✅", acceptedFiles)
       const file = acceptedFiles[0];
       if (file.size > 10 * 1024 * 1024) {
-        // bigger than 10mb!
         toast.error("File too large");
         return;
       }
 
       try {
         setUploading(true);
+        setProcessStage("uploading");
+
         const data = await uploadToS3(file);
         const formData = new FormData();
         formData.append("file", file);
+
+        setProcessStage("reading");
         const response = await axios.post("/api/upload", formData);
-        console.log("meow", response);
-        const pdfUrl = getS3Url(data?.file_key)
-        console.log("meow✅", pdfUrl);
+        const pdfUrl = getS3Url(data?.file_key);
         if (!data?.file_key || !data.file_name) {
           toast.error("Something went wrong");
           return;
         }
-        mutate({ file_key: data.file_key, file_name: data.file_name, openAIFileId: response.data.openAIFile.id }, {
-          onSuccess: ({ chat_id }) => {
-            toast.success("Chat created!");
-            router.push(`/chat/${chat_id}`);
-          },
-          onError: (err) => {
-            toast.error("Error creating chat");
-            console.error(err);
-          },
-        });
+
+        mutate(
+          { file_key: data.file_key, file_name: data.file_name, openAIFileId: response.data.openAIFile.id },
+          {
+            onSuccess: ({ chat_id }) => {
+              setProcessStage("summarizing");
+              toast.success("Chat created!");
+              router.push(`/chat/${chat_id}`);
+            },
+            onError: (err) => {
+              toast.error("Error creating chat");
+              console.error(err);
+            },
+          }
+        );
       } catch (error) {
-        console.log("ERROR_____")
-        console.log(error);
+        toast.error("Upload failed. Please try again.");
+        console.error(error);
       } finally {
         setUploading(false);
+        setProcessStage(null);
       }
     },
+    // Add this to disable drag and drop
+    disabled: uploading,
   });
 
+
+  const renderLoader = () => {
+    switch (processStage) {
+      case "uploading":
+        return (
+          <>
+            <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
+            <p className="mt-2 text-sm text-slate-400">Uploading PDF...</p>
+          </>
+        );
+      case "reading":
+        return (
+          <>
+            <Loader2 className="h-10 w-10 text-green-500 animate-spin" />
+            <p className="mt-2 text-sm text-slate-400">Reading file content...</p>
+          </>
+        );
+      case "analyzing":
+        return (
+          <>
+            <Loader2 className="h-10 w-10 text-orange-500 animate-spin" />
+            <p className="mt-2 text-sm text-slate-400">Analyzing lab report...</p>
+          </>
+        );
+      case "summarizing":
+        return (
+          <>
+            <Loader2 className="h-10 w-10 text-purple-500 animate-spin" />
+            <p className="mt-2 text-sm text-slate-400">Generating summary and health score...</p>
+          </>
+        );
+      default:
+        return (
+          <>
+            <Inbox className="w-10 h-10 text-blue-500" />
+            <p className="mt-2 text-sm text-slate-400">Drop PDF Here</p>
+          </>
+        );
+    }
+  };
 
   return (
     <div className="p-2 bg-white rounded-xl">
       <div
         {...getRootProps({
-          className:
-            "border-dashed border-2 rounded-xl cursor-pointer bg-gray-50 py-8 flex justify-center items-center flex-col",
+          className: `border-dashed border-2 rounded-xl cursor-pointer bg-gray-50 py-8 flex justify-center items-center flex-col ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`,
         })}
       >
-        <input {...getInputProps()} />
-        {uploading || isLoading ? (
-          <>
-            {/* loading state */}
-            <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
-            <p className="mt-2 text-sm text-slate-400">
-              Spilling Tea to MediReader...
-            </p>
-          </>
-        ) : (
-          <>
-            <Inbox className="w-10 h-10 text-blue-500" />
-            <p className="mt-2 text-sm text-slate-400">Drop PDF Here</p>
-          </>
-        )}
+        <input
+          {...getInputProps({
+            disabled: uploading,
+          })}
+        />
+        {renderLoader()}
       </div>
     </div>
   );
