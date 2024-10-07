@@ -20,8 +20,7 @@ const PDFViewer = ({ pdf_url }: Props) => {
       <iframe
         src={`https://docs.google.com/gview?url=${pdf_url}&embedded=true`}
         className="w-full h-full"
-        frameBorder="0"
-        onLoad={handleLoad} // Set loading to false when iframe loads
+        onLoad={handleLoad}
       ></iframe>
     </div>
   );

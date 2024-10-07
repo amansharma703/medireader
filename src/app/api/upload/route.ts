@@ -44,6 +44,16 @@ export const POST = async (req: Request) => {
             purpose: "assistants",
         });
 
+        // Delete the file after uploading
+        fs.unlink(savePath, (err) => {
+            if (err) {
+                console.error("Error deleting file:", err);
+            } else {
+                console.log(`File ${filename} deleted successfully.`);
+            }
+        });
+
+
         // Respond with success
         return NextResponse.json({ message: "File uploaded successfully", openAIFile }, { status: 201 });
 
