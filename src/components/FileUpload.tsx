@@ -17,14 +17,17 @@ const FileUpload = () => {
     mutationFn: async ({
       file_key,
       file_name,
+      openAIFileId
     }: {
       file_key: string;
       file_name: string;
+      openAIFileId: String;
     }) => {
       console.log("____________________________");
       const response = await axios.post("/api/create-chat", {
         file_key,
         file_name,
+        openAIFileId
       });
       return response.data;
     },
@@ -45,14 +48,17 @@ const FileUpload = () => {
       try {
         setUploading(true);
         const data = await uploadToS3(file);
-        console.log("meow", data);
-        // const pdfUrl = getS3Url(data?.file_key)
-        // console.log("meow✅", pdfUrl);
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await axios.post("/api/upload", formData);
+        console.log("meow", response);
+        const pdfUrl = getS3Url(data?.file_key)
+        console.log("meow✅", pdfUrl);
         if (!data?.file_key || !data.file_name) {
           toast.error("Something went wrong");
           return;
         }
-        mutate(data, {
+        mutate({ file_key: data.file_key, file_name: data.file_name, openAIFileId: response.data.openAIFile.id }, {
           onSuccess: ({ chat_id }) => {
             toast.success("Chat created!");
             router.push(`/chat/${chat_id}`);
@@ -86,7 +92,7 @@ const FileUpload = () => {
             {/* loading state */}
             <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
             <p className="mt-2 text-sm text-slate-400">
-              Spilling Tea to GPT...
+              Spilling Tea to MediReader...
             </p>
           </>
         ) : (

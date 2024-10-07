@@ -50,7 +50,7 @@ const ChatComponent = ({ chatId }: Props) => {
       {/* message list */}
       <MessageList messages={messages} isLoading={isLoading} />
 
-      <form
+      {/* <form
         onSubmit={handleSubmit}
         className="sticky bottom-0 inset-x-0 px-2 py-4 bg-white z-10"
       >
@@ -65,7 +65,7 @@ const ChatComponent = ({ chatId }: Props) => {
             <Send className="h-4 w-4" />
           </Button>
         </div>
-      </form>
+      </form> */}
     </div>
   );
 };
